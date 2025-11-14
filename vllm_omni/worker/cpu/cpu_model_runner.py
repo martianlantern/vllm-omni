@@ -266,7 +266,6 @@ class OmniCPUModelRunner(CPUModelRunner):
     def extract_multimodal_outputs(
             self, hidden_states: Union[torch.Tensor, List[torch.Tensor]]
     ) -> dict:
-        print('hidden_states',hidden_states)
         if (
                 hasattr(self.model, "have_multimodal_outputs")
                 and self.model.have_multimodal_outputs
@@ -588,7 +587,7 @@ class OmniCPUModelRunner(CPUModelRunner):
         hidden_states, multimodal_outputs = self.extract_multimodal_outputs(
             hidden_states
         )
-        if len(hidden_states.shape)==3:
+        if len(hidden_states.shape) == 3:
             return hidden_states[0], hidden_states[0][logit_indices]
         else:
             return hidden_states, hidden_states[logit_indices]
