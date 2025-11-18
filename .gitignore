@@ -232,3 +232,4 @@ configs/development.yaml
 # Docker
 .dockerignore
 Dockerfile.dev
+discussion
