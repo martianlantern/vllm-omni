@@ -41,5 +41,5 @@ vLLM-Omni offers an official docker image for deployment. These images are built
 and available on Docker Hub as [vllm/vllm-omni](https://hub.docker.com/r/vllm/vllm-omni/tags). The version of vLLM-Omni
 indicates which release of vLLM it is based on.
 
-!!! Tip
+!!! tip
     You can use this docker image to serve models the same way you would do in vLLM! To do so, make sure you overwrite the default entrypoint (`vllm serve --omni`) which works only for models supported in the vLLM-Omni project.
