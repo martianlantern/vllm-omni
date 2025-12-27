@@ -48,6 +48,11 @@ _OMNI_MODELS = {
         "qwen3_omni_code2wav",
         "Qwen3OmniMoeCode2Wav",
     ),
+    "VGGT": (
+        "vggt_model",
+        "vggt",
+        "VGGT",
+    ),
 }
 
 _VLLM_OMNI_MODELS = {
