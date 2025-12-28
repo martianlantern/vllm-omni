@@ -1,12 +1,11 @@
 from typing import Any
 
 import torch
-from vllm.multimodal import BaseProcessingInfo
 from vllm.multimodal.inputs import MultiModalDataDict
 from vllm.transformers_utils.tokenizer import AnyTokenizer
 
 
-class VGGTProcessingInfo(BaseProcessingInfo):
+class VGGTProcessingInfo:
     def get_supported_mm_limits(self) -> dict[str, int]:
         return {"image": 1}
 
