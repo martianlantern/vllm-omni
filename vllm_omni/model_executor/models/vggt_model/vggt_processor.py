@@ -1,8 +1,17 @@
 from typing import Any
 
 import torch
+from vllm.multimodal import BaseProcessingInfo
 from vllm.multimodal.inputs import MultiModalDataDict
 from vllm.transformers_utils.tokenizer import AnyTokenizer
+
+
+class VGGTProcessingInfo(BaseProcessingInfo):
+    def get_supported_mm_limits(self) -> dict[str, int]:
+        return {"image": 1}
+
+    def get_mm_max_tokens_per_item(self, seq_len: int, mm_counts: dict[str, int]) -> dict[str, int]:
+        return {"image": 0}
 
 
 class VGGTMultiModalProcessor:

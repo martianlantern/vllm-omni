@@ -8,12 +8,14 @@ from vllm.multimodal import MULTIMODAL_REGISTRY
 from vllm_omni.model_executor.models.vggt_model.vggt_processor import (
     VGGTDummyInputsBuilder,
     VGGTMultiModalProcessor,
+    VGGTProcessingInfo,
 )
 from vllm_omni.model_executor.models.vggt_model.vggt_source.models.vggt import VGGT as VGGTImpl  # noqa: N811
 
 
 @MULTIMODAL_REGISTRY.register_processor(
     VGGTMultiModalProcessor,
+    info=VGGTProcessingInfo,
     dummy_inputs=VGGTDummyInputsBuilder,
 )
 class VGGT(nn.Module):
