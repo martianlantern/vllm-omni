@@ -8,6 +8,9 @@ import sys
 
 def main():
     """Main CLI entry point that intercepts vLLM commands."""
+    # Ensure patching is applied
+    import vllm_omni.patch  # noqa: F401
+
     # Check if --omni flag is present
     if "--omni" not in sys.argv:
         from vllm.entrypoints.cli.main import main as vllm_main

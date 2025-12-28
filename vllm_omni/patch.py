@@ -31,3 +31,18 @@ for module_name, module in sys.modules.items():
         module.Request = OmniRequest
     if hasattr(module, "EngineCoreRequest") and module.EngineCoreRequest == _OriginalEngineCoreRequest:
         module.EngineCoreRequest = OmniEngineCoreRequest
+
+# Patch model registry to include Omni models
+try:
+    from vllm.model_executor.models import ModelRegistry
+
+    from vllm_omni.model_executor.models.registry import _OMNI_MODELS
+
+    for model_arch, (mod_folder, mod_relname, cls_name) in _OMNI_MODELS.items():
+        module_path = f"vllm_omni.model_executor.models.{mod_folder}.{mod_relname}"
+        # Register the model. Using update=True to overwrite if exists (if supported), or just call it.
+        # vLLM register_model typically assumes it's new.
+        if hasattr(ModelRegistry, "register_model"):
+            ModelRegistry.register_model(model_arch, module_path, cls_name)
+except ImportError:
+    pass
