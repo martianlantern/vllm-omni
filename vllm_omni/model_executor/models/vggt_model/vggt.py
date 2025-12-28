@@ -5,6 +5,7 @@ import torch.nn as nn
 from vllm.config import VllmConfig
 from vllm.multimodal import MULTIMODAL_REGISTRY
 
+from vllm_omni.model_executor.models.output_templates import OmniOutput
 from vllm_omni.model_executor.models.vggt_model.vggt_processor import (
     VGGTDummyInputsBuilder,
     VGGTMultiModalProcessor,
@@ -26,6 +27,7 @@ class VGGT(nn.Module):
     def __init__(self, *, vllm_config: VllmConfig, prefix: str = ""):
         super().__init__()
         config = vllm_config.model_config.hf_config
+        self.have_multimodal_outputs = True
 
         # Extract arguments from config or use defaults matching VGGTImpl
         img_size = getattr(config, "img_size", 518)
@@ -53,7 +55,7 @@ class VGGT(nn.Module):
         kv_caches: list[torch.Tensor],
         attn_metadata: Any = None,
         **kwargs: Any,
-    ) -> dict[str, torch.Tensor]:
+    ) -> OmniOutput:
         # VGGT is a vision model, input_ids/positions are dummy from vLLM's perspective
         # The actual inputs come via kwargs from the processor (e.g. 'images')
 
@@ -63,7 +65,7 @@ class VGGT(nn.Module):
             # In vLLM, if input_ids are present, maybe we are doing something else?
             # But for VGGT, we expect images.
             if kwargs.get("dummy_run", False):  # hypothetical
-                return {}
+                return OmniOutput(text_hidden_states=torch.empty(0), multimodal_outputs={})
             # Check if 'multi_modal_kwargs' wrapper exists (depending on vLLM version) or direct kwargs
             pass
 
@@ -71,7 +73,7 @@ class VGGT(nn.Module):
         query_points = kwargs.get("query_points", None)
 
         predictions = self.model(images, query_points=query_points)
-        return predictions
+        return OmniOutput(text_hidden_states=torch.empty(0, device=images.device), multimodal_outputs=predictions)
 
     def load_weights(self, weights: list[tuple[str, torch.Tensor]]):
         # Allow loading weights if vllm's loader calls this

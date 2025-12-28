@@ -120,16 +120,16 @@ def test_correctness():
     torch.cuda.synchronize()
     print(f"Wrapper Inference Time: {start_event.elapsed_time(end_event)} ms")
 
-    print(f"Wrapper Output Keys: {wrapper_output.keys()}")
+    print(f"Wrapper Output Keys: {wrapper_output.multimodal_outputs.keys()}")
 
     # Compare
     for key in raw_output:
-        if key not in wrapper_output:
+        if key not in wrapper_output.multimodal_outputs:
             print(f"MISSING KEY in Wrapper Output: {key}")
             continue
 
         t1 = raw_output[key]
-        t2 = wrapper_output[key]
+        t2 = wrapper_output.multimodal_outputs[key]
 
         if isinstance(t1, torch.Tensor):
             if not torch.allclose(t1, t2, atol=1e-3, rtol=1e-3):
