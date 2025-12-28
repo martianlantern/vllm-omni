@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 uv.lock
 vggt
+images
 
 # C extensions
 *.so
