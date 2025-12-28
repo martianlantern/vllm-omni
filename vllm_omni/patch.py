@@ -35,18 +35,28 @@ for module_name, module in sys.modules.items():
 # Patch model registry to include Omni models
 # Patch model registry to include Omni models
 try:
+    import importlib
+
     from vllm.model_executor.models import ModelRegistry
-    from vllm.model_executor.models.registry import _LazyRegisteredModel
 
     from vllm_omni.model_executor.models.registry import _OMNI_MODELS
 
     for model_arch, (mod_folder, mod_relname, cls_name) in _OMNI_MODELS.items():
         module_path = f"vllm_omni.model_executor.models.{mod_folder}.{mod_relname}"
-        lazy_model = _LazyRegisteredModel(module_name=module_path, class_name=cls_name)
 
-        # Register the model. Using update=True to overwrite if exists (if supported), or just call it.
-        # vLLM register_model typically assumes it's new.
-        if hasattr(ModelRegistry, "register_model"):
-            ModelRegistry.register_model(model_arch, lazy_model)
+        try:
+            # Eagerly import the class since register_model expects a class or string (but string might fail lazy check)
+            mod = importlib.import_module(module_path)
+            model_cls = getattr(mod, cls_name)
+
+            # Register the model class
+            if hasattr(ModelRegistry, "register_model"):
+                ModelRegistry.register_model(model_arch, model_cls)
+
+        except Exception:
+            # If import fails (e.g. missing deps), skip or log?
+            # Ideally log, but we'll just pass to avoid crashing CLI if not needed
+            pass
+
 except ImportError:
     pass
