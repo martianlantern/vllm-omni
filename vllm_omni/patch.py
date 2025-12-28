@@ -1,5 +1,6 @@
 import sys
 
+from vllm.config import ModelConfig as _OriginalModelConfig
 from vllm.inputs.data import TokensPrompt as _OriginalTokensPrompt
 from vllm.model_executor.layers.rotary_embedding import (
     MRotaryEmbedding as _OriginalMRotaryEmbedding,
@@ -10,6 +11,7 @@ from vllm.v1.engine import EngineCoreRequest as _OriginalEngineCoreRequest
 from vllm.v1.request import Request as _OriginalRequest
 
 import vllm_omni.logger  # noqa: F401
+from vllm_omni.config import OmniModelConfig
 from vllm_omni.engine import OmniEngineCoreOutput, OmniEngineCoreOutputs, OmniEngineCoreRequest
 from vllm_omni.inputs.data import OmniTokensPrompt
 from vllm_omni.model_executor.layers.mrope import MRotaryEmbedding
@@ -31,6 +33,8 @@ for module_name, module in sys.modules.items():
         module.Request = OmniRequest
     if hasattr(module, "EngineCoreRequest") and module.EngineCoreRequest == _OriginalEngineCoreRequest:
         module.EngineCoreRequest = OmniEngineCoreRequest
+    if hasattr(module, "ModelConfig") and module.ModelConfig == _OriginalModelConfig:
+        module.ModelConfig = OmniModelConfig
 
 # Patch model registry to include Omni models
 # Patch model registry to include Omni models
