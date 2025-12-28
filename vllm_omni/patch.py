@@ -38,11 +38,16 @@ try:
     import importlib
 
     from vllm.model_executor.models import ModelRegistry
+    from vllm.model_executor.models.registry import _VLLM_MODELS
 
     from vllm_omni.model_executor.models.registry import _OMNI_MODELS
 
     for model_arch, (mod_folder, mod_relname, cls_name) in _OMNI_MODELS.items():
         module_path = f"vllm_omni.model_executor.models.{mod_folder}.{mod_relname}"
+
+        # Manually update _VLLM_MODELS to pass ModelConfig validation which might check this dict directly
+        # Format expected: model_arch -> (module_path, class_name)
+        _VLLM_MODELS[model_arch] = (module_path, cls_name)
 
         try:
             # Eagerly import the class since register_model expects a class or string (but string might fail lazy check)
@@ -54,9 +59,11 @@ try:
                 ModelRegistry.register_model(model_arch, model_cls)
 
         except Exception:
-            # If import fails (e.g. missing deps), skip or log?
-            # Ideally log, but we'll just pass to avoid crashing CLI if not needed
+            # If import fails (e.g. missing deps), log or skip
             pass
+
+except ImportError:
+    pass
 
 except ImportError:
     pass
