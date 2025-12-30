@@ -83,8 +83,8 @@ def main():
     parser.add_argument(
         "--repetition-penalty",
         type=float,
-        default=1.2,
-        help="Repetition penalty for T3 stage",
+        default=1.0,  # Disabled: T3 uses text input but speech output vocabs
+        help="Repetition penalty for T3 stage (disabled by default)",
     )
 
     args = parser.parse_args()
