@@ -21,16 +21,17 @@ class ChatterboxTurboConfig(PretrainedConfig):
         num_attention_heads: int = 8,
         num_hidden_layers: int = 24,
         intermediate_size: int = 2618,
-        vocab_size: int = 152064,
-        speech_vocab_size: int = 6561,
-        max_position_embeddings: int = 8192,
+        # Updated to match actual model weights
+        vocab_size: int = 50276,
+        speech_vocab_size: int = 6563,
+        max_position_embeddings: int = 8196,
         # S3Gen (flow matching + vocoder) configuration
         sample_rate: int = 24000,
         mel_channels: int = 80,
         cfm_channels: int = 512,
         meanflow: bool = True,
-        # Speaker encoder
-        speaker_embed_dim: int = 192,
+        # Speaker encoder (updated to match weights)
+        speaker_embed_dim: int = 256,
         # Stage configuration (set by vllm-omni)
         model_stage: str | None = None,
         **kwargs,

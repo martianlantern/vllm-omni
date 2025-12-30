@@ -20,7 +20,7 @@ from vllm.v1.sample.sampler import Sampler
 
 logger = init_logger(__name__)
 
-# T3 Configuration Constants
+# T3 Configuration Constants - Updated to match actual model weights
 LLAMA_CONFIGS = {
     "turbo_600m": {
         "hidden_size": 1024,
@@ -28,26 +28,28 @@ LLAMA_CONFIGS = {
         "num_attention_heads": 8,
         "num_hidden_layers": 24,
         "num_key_value_heads": 8,
-        "vocab_size": 152064,
+        # Updated to match actual model weights
+        "vocab_size": 50276,
         "model_type": "gpt2",
-        "max_position_embeddings": 8192,
+        "max_position_embeddings": 8196,
     },
 }
 
 
 @dataclass
 class T3Config:
-    """T3 Model Configuration."""
+    """T3 Model Configuration - updated to match actual model weights."""
 
     n_channels: int = 1024
-    text_tokens_dict_size: int = 152064
-    speech_tokens_dict_size: int = 6561
+    # Updated to match actual safetensors weights
+    text_tokens_dict_size: int = 50276
+    speech_tokens_dict_size: int = 6563
     max_text_tokens: int = 2048
     max_speech_tokens: int = 3000
     start_speech_token: int = 6560
     stop_speech_token: int = 6562
     input_pos_emb: str = "learned"
-    speaker_embed_size: int = 192
+    speaker_embed_size: int = 256  # Updated from 192
     encoder_type: str = "voice_encoder"
     llama_config_name: str = "turbo_600m"
     emotion_adv: bool = False
