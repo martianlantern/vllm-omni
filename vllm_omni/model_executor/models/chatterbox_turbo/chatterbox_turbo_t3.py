@@ -240,8 +240,30 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
 
         Returns hidden states for speech head.
         """
+        # Handle dummy run during warmup - return dummy output
+        if input_ids is None and inputs_embeds is None:
+            # Warmup with no inputs - return dummy hidden states
+            dummy_hidden = torch.zeros(
+                1,
+                1,
+                self.dim,
+                device=self.device,
+                dtype=self.dtype,
+            )
+            return dummy_hidden
+
         if inputs_embeds is None and input_ids is not None:
+            # Ensure batch dimension
+            if input_ids.dim() == 1:
+                input_ids = input_ids.unsqueeze(0)
+
+            # Clamp input_ids to valid range for speech embedding
+            input_ids = torch.clamp(input_ids, 0, self.hp.speech_tokens_dict_size - 1)
             inputs_embeds = self.speech_emb(input_ids)
+
+        # Ensure 3D shape (batch, seq, hidden)
+        if inputs_embeds.dim() == 2:
+            inputs_embeds = inputs_embeds.unsqueeze(0)
 
         # Use internal caching for now (TODO: integrate with vLLM paged attention)
         use_cache = kv_caches is not None or self._past_key_values is not None

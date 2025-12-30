@@ -160,14 +160,33 @@ class ChatterboxTurboForConditionalGeneration(nn.Module, CustomProcessMixin):
         **kwargs,
     ) -> OmniOutput:
         """Forward pass for S3Gen (speech token to audio) stage."""
+        # Handle warmup/dummy run - return dummy audio output
         if additional_information is None:
-            raise ValueError("S3Gen stage requires additional_information with speech_tokens and ref_dict")
+            # Warmup with no inputs - return dummy audio
+            dummy_audio = torch.zeros(
+                24000,  # 1 second of silence at 24kHz
+                device=self._module_device(self.model),
+                dtype=torch.float16,
+            )
+            return OmniOutput(
+                text_hidden_states=None,
+                multimodal_outputs={"audio": dummy_audio},
+            )
 
         speech_tokens = additional_information.get("speech_tokens")
         ref_dict = additional_information.get("ref_dict")
 
         if speech_tokens is None:
-            raise ValueError("speech_tokens is required for S3Gen stage")
+            # No speech tokens - return silence
+            dummy_audio = torch.zeros(
+                24000,
+                device=self._module_device(self.model),
+                dtype=torch.float16,
+            )
+            return OmniOutput(
+                text_hidden_states=None,
+                multimodal_outputs={"audio": dummy_audio},
+            )
 
         # Use default voice if no ref_dict provided
         if ref_dict is None:
