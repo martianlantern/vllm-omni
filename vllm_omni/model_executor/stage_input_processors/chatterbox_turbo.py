@@ -77,18 +77,23 @@ def t3_to_s3gen(
         silence = torch.tensor([S3GEN_SIL, S3GEN_SIL, S3GEN_SIL], dtype=torch.long)
         speech_tokens = torch.cat([speech_tokens, silence])
 
-        # Extract ref_dict from original prompt
-        ref_dict = None
-        if prompt is not None:
-            if isinstance(prompt, dict):
-                multi_modal_data = prompt.get("multi_modal_data", {})
-                ref_dict = multi_modal_data.get("ref_dict")
-            elif hasattr(prompt, "multi_modal_data"):
-                ref_dict = getattr(prompt.multi_modal_data, "ref_dict", None)
+        # Extract ref_dict from original prompt (not passed through additional_information
+        # since input_processor only accepts Tensor or list values)
+        # S3Gen will use default voice when ref_dict is not provided
+        # ref_dict = None
+        # if prompt is not None:
+        #     if isinstance(prompt, dict):
+        #         multi_modal_data = prompt.get("multi_modal_data", {})
+        # ref_dict = multi_modal_data.get("ref_dict")
+        # elif hasattr(prompt, "multi_modal_data"):
+        #     ref_dict = getattr(prompt.multi_modal_data, "ref_dict", None)
 
+        # Note: ref_dict cannot be passed through additional_information because
+        # the input processor only accepts Tensor or list types. The S3Gen model
+        # will load the default voice from conds.pt when ref_dict is None.
         additional_information = {
             "speech_tokens": speech_tokens,
-            "ref_dict": ref_dict,
+            # ref_dict is handled by S3Gen model internally (loads default voice)
         }
 
         s3gen_inputs.append(
