@@ -265,6 +265,22 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
         if inputs_embeds.dim() == 2:
             inputs_embeds = inputs_embeds.unsqueeze(0)
 
+        # Handle warmup: if sequence length exceeds max position embeddings, return dummy
+        # GPT2 will crash if sequence length > max_position_embeddings (wpe lookup fails)
+        seq_len = inputs_embeds.size(1)
+        max_pos = LLAMA_CONFIGS[self.hp.llama_config_name]["max_position_embeddings"]
+        if seq_len > max_pos:
+            # This is likely a warmup run with synthetic inputs
+            # Return dummy hidden states with matching shape
+            dummy_hidden = torch.zeros(
+                inputs_embeds.size(0),
+                seq_len,
+                self.dim,
+                device=self.device,
+                dtype=self.dtype,
+            )
+            return dummy_hidden
+
         # Use internal caching for now (TODO: integrate with vLLM paged attention)
         use_cache = kv_caches is not None or self._past_key_values is not None
 
