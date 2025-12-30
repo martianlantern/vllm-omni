@@ -275,9 +275,24 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
             if input_ids.dim() == 1:
                 input_ids = input_ids.unsqueeze(0)
 
+            # Log BEFORE clamp
+            logger.info(
+                f"T3 forward: input_ids BEFORE clamp: min={input_ids.min().item()}, "
+                f"max={input_ids.max().item()}, speech_vocab_size={self.hp.speech_tokens_dict_size}"
+            )
+
             # Clamp input_ids to valid range for speech embedding
             input_ids = torch.clamp(input_ids, 0, self.hp.speech_tokens_dict_size - 1)
+
+            # Force CUDA sync to catch any error before this point
+            torch.cuda.synchronize()
+            logger.info(
+                f"T3 forward: input_ids AFTER clamp: min={input_ids.min().item()}, max={input_ids.max().item()}"
+            )
+
             inputs_embeds = self.speech_emb(input_ids)
+            torch.cuda.synchronize()
+            logger.info("T3 forward: speech_emb completed successfully")
 
         # Ensure 3D shape (batch, seq, hidden)
         if inputs_embeds.dim() == 2:
