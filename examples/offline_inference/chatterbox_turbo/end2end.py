@@ -104,12 +104,20 @@ def main():
         print("Using default voice (no reference audio provided)")
 
     # Prepare text prompt with multimodal data
-    prompt = {
-        "prompt": args.text,
-        "multi_modal_data": {
-            "ref_dict": ref_dict,
-        },
-    }
+    # Only include ref_dict if we have actual reference audio
+    # vLLM multimodal validation rejects None values
+    if ref_dict is not None:
+        prompt = {
+            "prompt": args.text,
+            "multi_modal_data": {
+                "ref_dict": ref_dict,
+            },
+        }
+    else:
+        # No reference audio - model should use internal default voice
+        prompt = {
+            "prompt": args.text,
+        }
 
     # Sampling params for T3 stage (AR token generation)
     t3_params = SamplingParams(

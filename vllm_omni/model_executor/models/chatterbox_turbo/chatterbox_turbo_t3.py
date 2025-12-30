@@ -220,16 +220,6 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
         return embeds, cond_emb.size(1)
 
     def embed_input_ids(self, input_ids: torch.Tensor) -> torch.Tensor:
-        """Embed input token IDs as speech tokens.
-
-        Clamps input_ids to valid range to prevent out-of-bounds during warmup.
-        """
-        # Debug logging
-        logger.info(
-            f"T3 embed_input_ids: input_ids shape={input_ids.shape}, "
-            f"min={input_ids.min().item()}, max={input_ids.max().item()}, "
-            f"vocab_size={self.hp.speech_tokens_dict_size}"
-        )
         # Clamp to valid speech vocab range to prevent CUDA gather error during warmup
         input_ids = torch.clamp(input_ids, 0, self.hp.speech_tokens_dict_size - 1)
         return self.speech_emb(input_ids)
@@ -251,17 +241,9 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
 
         Returns hidden states for speech head.
         """
-        # Debug logging for warmup tracing
-        logger.info(
-            f"T3 forward: input_ids={input_ids.shape if input_ids is not None else None}, "
-            f"inputs_embeds={inputs_embeds.shape if inputs_embeds is not None else None}"
-        )
 
         # Handle dummy run during warmup - return dummy output
         if input_ids is None and inputs_embeds is None:
-            # Warmup with no inputs - return dummy hidden states
-            # vLLM expects [num_tokens, hidden_dim] shape
-            logger.info("T3 forward: warmup with no inputs, returning dummy")
             dummy_hidden = torch.zeros(
                 1,  # 1 token
                 self.dim,
@@ -275,24 +257,8 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
             if input_ids.dim() == 1:
                 input_ids = input_ids.unsqueeze(0)
 
-            # Log BEFORE clamp
-            logger.info(
-                f"T3 forward: input_ids BEFORE clamp: min={input_ids.min().item()}, "
-                f"max={input_ids.max().item()}, speech_vocab_size={self.hp.speech_tokens_dict_size}"
-            )
-
-            # Clamp input_ids to valid range for speech embedding
             input_ids = torch.clamp(input_ids, 0, self.hp.speech_tokens_dict_size - 1)
-
-            # Force CUDA sync to catch any error before this point
-            torch.cuda.synchronize()
-            logger.info(
-                f"T3 forward: input_ids AFTER clamp: min={input_ids.min().item()}, max={input_ids.max().item()}"
-            )
-
             inputs_embeds = self.speech_emb(input_ids)
-            torch.cuda.synchronize()
-            logger.info("T3 forward: speech_emb completed successfully")
 
         # Ensure 3D shape (batch, seq, hidden)
         if inputs_embeds.dim() == 2:
@@ -318,14 +284,11 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
         # Use internal caching for now (TODO: integrate with vLLM paged attention)
         use_cache = kv_caches is not None or self._past_key_values is not None
 
-        logger.info(f"T3 forward: calling GPT2 with inputs_embeds shape={inputs_embeds.shape}")
         outputs = self.tfmr(
             inputs_embeds=inputs_embeds,
             past_key_values=self._past_key_values if use_cache else None,
             use_cache=use_cache,
         )
-        torch.cuda.synchronize()
-        logger.info("T3 forward: GPT2 completed successfully")
 
         if use_cache:
             self._past_key_values = outputs.past_key_values
@@ -334,7 +297,6 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
         # vLLM expects [num_tokens, hidden_dim], not [batch, seq, hidden_dim]
         # Flatten from [batch, seq, hidden] to [num_tokens, hidden]
         hidden_states = hidden_states.view(-1, hidden_states.size(-1))
-        logger.info(f"T3 forward: returning hidden_states shape={hidden_states.shape}")
         return hidden_states
 
     def compute_logits(self, hidden_states: torch.Tensor) -> torch.Tensor:
