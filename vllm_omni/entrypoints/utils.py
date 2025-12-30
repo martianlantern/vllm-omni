@@ -9,6 +9,9 @@ from vllm.logger import init_logger
 from vllm.transformers_utils.config import get_config, get_hf_file_to_dict
 from vllm.transformers_utils.repo_utils import file_or_path_exists
 
+# Register custom model configurations with transformers AutoConfig
+# This must happen before get_config() is called for these models
+import vllm_omni.model_executor.models.chatterbox_turbo  # noqa: F401
 from vllm_omni.utils import detect_device_type, is_rocm
 
 # Get the project root directory (2 levels up from this file)
