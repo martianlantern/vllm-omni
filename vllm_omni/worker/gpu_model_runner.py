@@ -316,6 +316,10 @@ class OmniGPUModelRunner(GPUModelRunner):
             text_hidden_states = hidden_states.text_hidden_states
             multimodal_outputs = hidden_states.multimodal_outputs
 
+        elif isinstance(hidden_states, OmniOutput):
+            # Handle OmniOutput from models that return it directly
+            text_hidden_states = hidden_states.text_hidden_states
+            multimodal_outputs = hidden_states.multimodal_outputs or {}
         elif isinstance(hidden_states, torch.Tensor):
             text_hidden_states = hidden_states
             multimodal_outputs = {}
