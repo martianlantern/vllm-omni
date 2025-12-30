@@ -224,6 +224,12 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
 
         Clamps input_ids to valid range to prevent out-of-bounds during warmup.
         """
+        # Debug logging
+        logger.info(
+            f"T3 embed_input_ids: input_ids shape={input_ids.shape}, "
+            f"min={input_ids.min().item()}, max={input_ids.max().item()}, "
+            f"vocab_size={self.hp.speech_tokens_dict_size}"
+        )
         # Clamp to valid speech vocab range to prevent CUDA gather error during warmup
         input_ids = torch.clamp(input_ids, 0, self.hp.speech_tokens_dict_size - 1)
         return self.speech_emb(input_ids)
@@ -245,9 +251,16 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
 
         Returns hidden states for speech head.
         """
+        # Debug logging for warmup tracing
+        logger.info(
+            f"T3 forward: input_ids={input_ids.shape if input_ids is not None else None}, "
+            f"inputs_embeds={inputs_embeds.shape if inputs_embeds is not None else None}"
+        )
+
         # Handle dummy run during warmup - return dummy output
         if input_ids is None and inputs_embeds is None:
             # Warmup with no inputs - return dummy hidden states
+            logger.info("T3 forward: warmup with no inputs, returning dummy")
             dummy_hidden = torch.zeros(
                 1,
                 1,
