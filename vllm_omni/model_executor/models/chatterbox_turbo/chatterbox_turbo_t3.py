@@ -260,10 +260,10 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
         # Handle dummy run during warmup - return dummy output
         if input_ids is None and inputs_embeds is None:
             # Warmup with no inputs - return dummy hidden states
+            # vLLM expects [num_tokens, hidden_dim] shape
             logger.info("T3 forward: warmup with no inputs, returning dummy")
             dummy_hidden = torch.zeros(
-                1,
-                1,
+                1,  # 1 token
                 self.dim,
                 device=self.device,
                 dtype=self.dtype,
@@ -305,9 +305,10 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
         if seq_len > max_pos:
             # This is likely a warmup run with synthetic inputs
             # Return dummy hidden states with matching shape
+            # vLLM expects [num_tokens, hidden_dim] shape (flattened)
+            num_tokens = inputs_embeds.size(0) * seq_len
             dummy_hidden = torch.zeros(
-                inputs_embeds.size(0),
-                seq_len,
+                num_tokens,
                 self.dim,
                 device=self.device,
                 dtype=self.dtype,
@@ -317,16 +318,24 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
         # Use internal caching for now (TODO: integrate with vLLM paged attention)
         use_cache = kv_caches is not None or self._past_key_values is not None
 
+        logger.info(f"T3 forward: calling GPT2 with inputs_embeds shape={inputs_embeds.shape}")
         outputs = self.tfmr(
             inputs_embeds=inputs_embeds,
             past_key_values=self._past_key_values if use_cache else None,
             use_cache=use_cache,
         )
+        torch.cuda.synchronize()
+        logger.info("T3 forward: GPT2 completed successfully")
 
         if use_cache:
             self._past_key_values = outputs.past_key_values
 
-        return outputs.last_hidden_state
+        hidden_states = outputs.last_hidden_state
+        # vLLM expects [num_tokens, hidden_dim], not [batch, seq, hidden_dim]
+        # Flatten from [batch, seq, hidden] to [num_tokens, hidden]
+        hidden_states = hidden_states.view(-1, hidden_states.size(-1))
+        logger.info(f"T3 forward: returning hidden_states shape={hidden_states.shape}")
+        return hidden_states
 
     def compute_logits(self, hidden_states: torch.Tensor) -> torch.Tensor:
         """Compute speech logits from hidden states."""
