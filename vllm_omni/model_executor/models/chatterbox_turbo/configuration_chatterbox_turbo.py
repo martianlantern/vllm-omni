@@ -40,7 +40,7 @@ class ChatterboxTurboConfig(PretrainedConfig):
         self.num_attention_heads = num_attention_heads
         self.num_hidden_layers = num_hidden_layers
         self.intermediate_size = intermediate_size
-        self.vocab_size = vocab_size
+        self.text_vocab_size = vocab_size  # Store original text vocab size
         self.speech_vocab_size = speech_vocab_size
         self.max_position_embeddings = max_position_embeddings
         self.sample_rate = sample_rate
@@ -49,6 +49,15 @@ class ChatterboxTurboConfig(PretrainedConfig):
         self.meanflow = meanflow
         self.speaker_embed_dim = speaker_embed_dim
         self.model_stage = model_stage
+
+        # IMPORTANT: For T3 stage, vocab_size must match speech_vocab_size
+        # because T3 outputs speech logits (6563 tokens), not text logits.
+        # This prevents CUDA index out-of-bounds in vLLM's penalty calculation
+        # when repetition_penalty is applied to prompt tokens.
+        if model_stage == "t3":
+            self.vocab_size = speech_vocab_size
+        else:
+            self.vocab_size = vocab_size
 
         super().__init__(**kwargs)
 
