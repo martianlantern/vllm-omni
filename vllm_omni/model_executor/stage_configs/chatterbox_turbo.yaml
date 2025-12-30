@@ -29,7 +29,7 @@ stage_args:
       top_p: 0.95
       top_k: 1000
       max_tokens: 1000
-      repetition_penalty: 1.2
+      repetition_penalty: 1.0  # Disabled: T3 uses text input but speech output vocabs
 
   # Stage 1: S3Gen Non-AR Audio Generation
   - stage_id: 1
