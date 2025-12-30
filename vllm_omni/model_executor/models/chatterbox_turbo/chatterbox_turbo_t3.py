@@ -220,7 +220,12 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
         return embeds, cond_emb.size(1)
 
     def embed_input_ids(self, input_ids: torch.Tensor) -> torch.Tensor:
-        """Embed input token IDs as speech tokens."""
+        """Embed input token IDs as speech tokens.
+
+        Clamps input_ids to valid range to prevent out-of-bounds during warmup.
+        """
+        # Clamp to valid speech vocab range to prevent CUDA gather error during warmup
+        input_ids = torch.clamp(input_ids, 0, self.hp.speech_tokens_dict_size - 1)
         return self.speech_emb(input_ids)
 
     def forward(
