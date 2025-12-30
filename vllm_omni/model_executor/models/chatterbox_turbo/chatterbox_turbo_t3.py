@@ -18,6 +18,8 @@ from vllm.config import VllmConfig
 from vllm.logger import init_logger
 from vllm.v1.sample.sampler import Sampler
 
+from vllm_omni.model_executor.models.output_templates import OmniOutput
+
 logger = init_logger(__name__)
 
 # T3 Configuration Constants - Updated to match actual model weights
@@ -250,7 +252,8 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
                 device=self.device,
                 dtype=self.dtype,
             )
-            return dummy_hidden
+            # Return as OmniOutput for gpu_ar_model_runner
+            return OmniOutput(text_hidden_states=dummy_hidden, multimodal_outputs=None)
 
         if inputs_embeds is None and input_ids is not None:
             # Ensure batch dimension
@@ -279,7 +282,8 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
                 device=self.device,
                 dtype=self.dtype,
             )
-            return dummy_hidden
+            # Return as OmniOutput for gpu_ar_model_runner
+            return OmniOutput(text_hidden_states=dummy_hidden, multimodal_outputs=None)
 
         # Use internal caching for now (TODO: integrate with vLLM paged attention)
         use_cache = kv_caches is not None or self._past_key_values is not None
@@ -297,7 +301,8 @@ class ChatterboxTurboT3ForConditionalGeneration(nn.Module):
         # vLLM expects [num_tokens, hidden_dim], not [batch, seq, hidden_dim]
         # Flatten from [batch, seq, hidden] to [num_tokens, hidden]
         hidden_states = hidden_states.view(-1, hidden_states.size(-1))
-        return hidden_states
+        # Return as OmniOutput for gpu_ar_model_runner
+        return OmniOutput(text_hidden_states=hidden_states, multimodal_outputs=None)
 
     def compute_logits(self, hidden_states: torch.Tensor) -> torch.Tensor:
         """Compute speech logits from hidden states."""
