@@ -1,0 +1,65 @@
+# Stage configuration for Chatterbox Turbo TTS
+# Two-stage pipeline: T3 (AR) → S3Gen (Non-AR)
+# GPU memory split: 0.45 each on single A100 80GB
+
+stage_args:
+  # Stage 0: T3 Autoregressive Token Generation
+  - stage_id: 0
+    stage_type: llm
+    runtime:
+      process: true
+      devices: "0"
+      max_batch_size: 1
+    engine_args:
+      model_stage: t3
+      model_arch: ChatterboxTurboForConditionalGeneration
+      worker_cls: vllm_omni.worker.gpu_ar_worker.GPUARWorker
+      scheduler_cls: vllm_omni.core.sched.omni_ar_scheduler.OmniARScheduler
+      gpu_memory_utilization: 0.45
+      enforce_eager: true
+      trust_remote_code: true
+      engine_output_type: latent
+      enable_prefix_caching: false
+      max_num_batched_tokens: 4096
+      max_model_len: 4096
+    is_comprehension: false
+    final_output: false
+    default_sampling_params:
+      temperature: 0.8
+      top_p: 0.95
+      top_k: 1000
+      max_tokens: 1000
+      repetition_penalty: 1.2
+
+  # Stage 1: S3Gen Non-AR Audio Generation
+  - stage_id: 1
+    stage_type: llm
+    runtime:
+      process: true
+      devices: "0"
+      max_batch_size: 1
+    engine_args:
+      model_stage: s3gen
+      model_arch: ChatterboxTurboForConditionalGeneration
+      worker_cls: vllm_omni.worker.gpu_generation_worker.GPUGenerationWorker
+      scheduler_cls: vllm_omni.core.sched.omni_generation_scheduler.OmniGenerationScheduler
+      gpu_memory_utilization: 0.45
+      enforce_eager: true
+      trust_remote_code: true
+      engine_output_type: audio
+    engine_input_source: [0]
+    custom_process_input_func: vllm_omni.model_executor.stage_input_processors.chatterbox_turbo.t3_to_s3gen
+    final_output: true
+    final_output_type: audio
+    default_sampling_params:
+      max_tokens: 1
+
+runtime:
+  enabled: true
+  defaults:
+    window_size: -1
+    max_inflight: 1
+  edges:
+    - from: 0
+      to: 1
+      window_size: -1

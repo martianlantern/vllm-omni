@@ -48,6 +48,12 @@ _OMNI_MODELS = {
         "qwen3_omni_code2wav",
         "Qwen3OmniMoeCode2Wav",
     ),
+    # Chatterbox Turbo TTS models
+    "ChatterboxTurboForConditionalGeneration": (
+        "chatterbox_turbo",
+        "chatterbox_turbo",
+        "ChatterboxTurboForConditionalGeneration",
+    ),
 }
 
 _VLLM_OMNI_MODELS = {
