@@ -112,7 +112,7 @@ class ChatterboxTurboForConditionalGeneration(nn.Module, CustomProcessMixin):
         inputs_embeds: torch.Tensor | None = None,
         additional_information: dict | None = None,
         **kwargs,
-    ) -> OmniOutput:
+    ) -> torch.Tensor | OmniOutput:
         """
         Forward pass dispatcher.
 
@@ -140,8 +140,11 @@ class ChatterboxTurboForConditionalGeneration(nn.Module, CustomProcessMixin):
         positions: torch.Tensor,
         inputs_embeds: torch.Tensor | None = None,
         **kwargs,
-    ) -> OmniOutput:
-        """Forward pass for T3 (text-to-speech token) stage."""
+    ) -> torch.Tensor:
+        """Forward pass for T3 (text-to-speech token) stage.
+
+        Returns raw hidden states tensor (not OmniOutput) since have_multimodal_outputs=False.
+        """
         hidden_states = self.t3(
             input_ids=input_ids,
             positions=positions,
@@ -149,10 +152,7 @@ class ChatterboxTurboForConditionalGeneration(nn.Module, CustomProcessMixin):
             **kwargs,
         )
 
-        return OmniOutput(
-            text_hidden_states=hidden_states,
-            multimodal_outputs=None,
-        )
+        return hidden_states
 
     def _forward_s3gen(
         self,
