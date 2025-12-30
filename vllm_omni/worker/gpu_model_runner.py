@@ -856,6 +856,9 @@ class OmniGPUModelRunner(GPUModelRunner):
             for req_index, req_id in enumerate(self.input_batch.req_ids):
                 req_state = self.requests.get(req_id)
                 req_infos = getattr(req_state, "additional_information_cpu", None) if req_state is not None else None
+                # Default to empty dict for safe unpacking
+                if req_infos is None:
+                    req_infos = {}
 
                 start_offset = int(self.query_start_loc.cpu[req_index])
                 sched_tokens = int(num_scheduled_tokens_np[req_index])
@@ -863,17 +866,20 @@ class OmniGPUModelRunner(GPUModelRunner):
                 span_len = int(e) - int(s)
 
                 # call the custom process function
+                # Handle case where inputs_embeds is None (e.g., S3Gen text-only path)
+                input_embeds_slice = inputs_embeds[s:e] if inputs_embeds is not None else None
                 req_input_ids, req_embeds, update_dict = self.model.preprocess(
-                    input_ids=input_ids[s:e], input_embeds=inputs_embeds[s:e], **req_infos
+                    input_ids=input_ids[s:e], input_embeds=input_embeds_slice, **req_infos
                 )
                 # TODO(Peiqi): the merge stage could move out from the critical path
                 self._merge_additional_information_update(req_id, update_dict)
 
-                # update the inputs_embeds and input_ids
-                seg_len = min(span_len, req_embeds.shape[0])
-                inputs_embeds[s : s + seg_len] = req_embeds[:seg_len]
-                if isinstance(req_input_ids, torch.Tensor) and req_input_ids.numel() == seg_len:
-                    input_ids[s : s + seg_len] = req_input_ids
+                # update the inputs_embeds and input_ids (only if embeds are provided)
+                if req_embeds is not None and inputs_embeds is not None:
+                    seg_len = min(span_len, req_embeds.shape[0])
+                    inputs_embeds[s : s + seg_len] = req_embeds[:seg_len]
+                    if isinstance(req_input_ids, torch.Tensor) and req_input_ids.numel() == seg_len:
+                        input_ids[s : s + seg_len] = req_input_ids
 
         return (
             input_ids,
