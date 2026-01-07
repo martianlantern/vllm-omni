@@ -76,7 +76,7 @@ class SparkTTSForConditionalGeneration(nn.Module, CustomProcessMixin):
             )
 
             self.speech_llm = SparkTTSSpeechLLMForGeneration(
-                vllm_config=vllm_config, prefix=maybe_prefix(prefix, "speech_llm")
+                vllm_config=vllm_config, prefix=prefix
             )
             self.model = self.speech_llm
             # Enable preprocessing for prompt construction

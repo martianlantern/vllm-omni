@@ -133,12 +133,14 @@ class SparkTTSAudioTokenizerForGeneration(nn.Module):
         self.model = None
 
         # Dummy attention layer to satisfy vLLM KV cache coordinator
-        # Must contain an integer index for vLLM to parse layer ID
-        self.dummy_attn_0 = Attention(
-             num_heads=1,
-             head_size=1,
-             scale=1.0,
-        )
+        # Use ModuleList to ensure name (dummy_layers.0) contains integer index
+        self.dummy_layers = nn.ModuleList([
+            Attention(
+                num_heads=1,
+                head_size=1,
+                scale=1.0,
+            )
+        ])
 
     def load_weights(self, weights):
         """Load weights for BiCodec components.
