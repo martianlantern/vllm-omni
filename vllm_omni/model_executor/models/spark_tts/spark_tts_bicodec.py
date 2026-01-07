@@ -92,7 +92,8 @@ class SparkTTSBiCodecForGeneration(nn.Module):
         self.model = None
 
         # Dummy attention layer to satisfy vLLM KV cache coordinator
-        self.dummy_attn = Attention(
+        # Must contain an integer index for vLLM to parse layer ID
+        self.dummy_attn_0 = Attention(
              num_heads=1,
              head_size=1,
              scale=1.0,
