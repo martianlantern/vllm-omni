@@ -92,8 +92,8 @@ class SparkTTSBiCodecForGeneration(nn.Module):
         self.model = None
 
         # Dummy attention layer to satisfy vLLM KV cache coordinator
-        # Use ModuleList to ensure name (dummy_layers.0) contains integer index
-        self.dummy_layers = nn.ModuleList([
+        # Named 'layers' to match vLLM's expected pattern for layer index extraction
+        self.layers = nn.ModuleList([
             Attention(
                 num_heads=1,
                 head_size=1,
@@ -104,10 +104,17 @@ class SparkTTSBiCodecForGeneration(nn.Module):
     def load_weights(self, weights) -> set[str]:
         """Load weights for BiCodec decoder.
         
+        - BiCodec: Loaded from safetensors in BiCodec directory
+        - layers (dummy attention): Randomly initialized, no checkpoint needed
+        
         Returns:
             Set of loaded parameter names (relative to this module).
         """
         loaded_params: set[str] = set()
+        
+        # Track dummy attention layer weights (randomly initialized is OK)
+        for name, _ in self.layers.named_parameters():
+            loaded_params.add(f"layers.{name}")
         
         # Load config first
         config_path = os.path.join(self.bicodec_path, "config.yaml")

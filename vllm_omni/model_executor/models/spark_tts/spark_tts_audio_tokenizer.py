@@ -133,8 +133,8 @@ class SparkTTSAudioTokenizerForGeneration(nn.Module):
         self.model = None
 
         # Dummy attention layer to satisfy vLLM KV cache coordinator
-        # Use ModuleList to ensure name (dummy_layers.0) contains integer index
-        self.dummy_layers = nn.ModuleList([
+        # Named 'layers' to match vLLM's expected pattern for layer index extraction
+        self.layers = nn.ModuleList([
             Attention(
                 num_heads=1,
                 head_size=1,
@@ -143,15 +143,27 @@ class SparkTTSAudioTokenizerForGeneration(nn.Module):
         ])
 
     def load_weights(self, weights) -> set[str]:
-        """Load weights for BiCodec components.
+        """Load weights for audio tokenizer components.
         
-        Loads `config.yaml` and `model.safetensors` from the BiCodec directory.
-        Note: ignoring `weights` iterator for BiCodec components as we load explicitly.
+        - wav2vec2: Already loaded in __init__ via from_pretrained()
+        - BiCodec: Loaded from safetensors in BiCodec directory
+        - layers (dummy attention): Randomly initialized, no checkpoint needed
         
         Returns:
             Set of loaded parameter names (relative to this module).
         """
         loaded_params: set[str] = set()
+        
+        # Track wav2vec2 weights (already loaded in __init__)
+        if self.wav2vec2 is not None:
+            for name, _ in self.wav2vec2.named_parameters():
+                loaded_params.add(f"wav2vec2.{name}")
+            for name, _ in self.wav2vec2.named_buffers():
+                loaded_params.add(f"wav2vec2.{name}")
+        
+        # Track dummy attention layer weights (randomly initialized is OK)
+        for name, _ in self.layers.named_parameters():
+            loaded_params.add(f"layers.{name}")
         
         # Load config first
         config_path = os.path.join(self.bicodec_path, "config.yaml")

@@ -14,16 +14,33 @@ SparkTTS is integrated into `vllm-omni` as a 3-stage pipeline (Audio Tokenizer â
 
 #### A. KV Cache for Non-Attention Models (Stage 0 & 2)
 **Issue**: vLLM's `HybridKVCacheCoordinator` asserts that all models must have attention layers. Encoder-only models (`SparkTTSAudioTokenizerForGeneration`) and non-autoregressive decoders (`SparkTTSBiCodecForGeneration`) lack these.
-**Fix**: Added a dummy attention layer wrapped in `nn.ModuleList` to satisfy the coordinator and layer naming parsers.
+**Fix**: Added a dummy attention layer in `nn.ModuleList`. Named `layers` (not `dummy_layers`) to satisfy vLLM's `extract_layer_index` which expects `layers.N` pattern.
 
 ```python
 # In SparkTTSAudioTokenizerForGeneration & SparkTTSBiCodecForGeneration
 from vllm.attention.layer import Attention
 
-# Use ModuleList to ensure layer name (dummy_layers.0) parses correctly as index 0
-self.dummy_layers = nn.ModuleList([
+# Named 'layers' to match vLLM's expected pattern for layer index extraction
+self.layers = nn.ModuleList([
     Attention(num_heads=1, head_size=1, scale=1.0)
 ])
+```
+
+#### C. Complete Weight Tracking (Stage 0 & 2)
+**Issue**: vLLM's loader validates that ALL `named_parameters()` are covered by `load_weights()` return set. Stage 0's wav2vec2 (loaded via `from_pretrained`) and dummy attention weights weren't tracked.
+**Fix**: `load_weights` now iterates over all model parameters and adds them to the returned set.
+
+```python
+# Track wav2vec2 weights (already loaded in __init__)
+if self.wav2vec2 is not None:
+    for name, _ in self.wav2vec2.named_parameters():
+        loaded_params.add(f"wav2vec2.{name}")
+    for name, _ in self.wav2vec2.named_buffers():
+        loaded_params.add(f"wav2vec2.{name}")
+
+# Track dummy attention layer weights
+for name, _ in self.layers.named_parameters():
+    loaded_params.add(f"layers.{name}")
 ```
 
 #### B. Weight Loading Prefix Mismatch (All Stages)
