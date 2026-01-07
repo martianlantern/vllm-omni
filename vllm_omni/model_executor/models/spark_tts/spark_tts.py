@@ -198,10 +198,12 @@ class SparkTTSForConditionalGeneration(nn.Module, CustomProcessMixin):
     def load_weights(self, weights) -> set[str]:
         """Load weights for the model.
         
-        Each stage's sub-model is stored under a different attribute
-        (audio_tokenizer, speech_llm, bicodec). We add the corresponding
-        prefix to the loaded weights set so vLLM knows the outer model's
-        parameters were initialized.
+        Each stage's sub-model is stored under TWO attributes:
+        1. Stage-specific: self.audio_tokenizer, self.speech_llm, or self.bicodec
+        2. Generic alias: self.model (points to same object)
+        
+        PyTorch registers params under BOTH names, so we must return
+        loaded weights with BOTH prefixes.
         """
         from vllm_omni.model_executor.models.utils import add_prefix_to_loaded_weights
         
@@ -214,8 +216,13 @@ class SparkTTSForConditionalGeneration(nn.Module, CustomProcessMixin):
             "speech_llm": "speech_llm",
             "bicodec": "bicodec",
         }
-        prefix = prefix_map.get(self.model_stage, "")
+        stage_prefix = prefix_map.get(self.model_stage, "")
         
-        if prefix:
-            return add_prefix_to_loaded_weights(loaded, prefix)
-        return loaded
+        result = set()
+        if stage_prefix:
+            # Add stage-specific prefix (e.g., audio_tokenizer.wav2vec2.xxx)
+            result.update(add_prefix_to_loaded_weights(loaded, stage_prefix))
+        # Also add 'model.' prefix since self.model points to same module
+        result.update(add_prefix_to_loaded_weights(loaded, "model"))
+        
+        return result
