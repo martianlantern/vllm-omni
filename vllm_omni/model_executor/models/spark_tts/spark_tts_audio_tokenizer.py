@@ -91,6 +91,8 @@ class SparkTTSAudioTokenizerModel(nn.Module):
         }
 
 
+from vllm.attention.layer import Attention
+
 class SparkTTSAudioTokenizerForGeneration(nn.Module):
     """Audio tokenizer wrapper for vLLM generation pipeline."""
 
@@ -129,6 +131,13 @@ class SparkTTSAudioTokenizerForGeneration(nn.Module):
 
         # Placeholder for BiCodec model (will be loaded in load_weights)
         self.model = None
+
+        # Dummy attention layer to satisfy vLLM KV cache coordinator
+        self.dummy_attn = Attention(
+             num_heads=1,
+             head_size=1,
+             scale=1.0,
+        )
 
     def load_weights(self, weights):
         """Load weights for BiCodec components.

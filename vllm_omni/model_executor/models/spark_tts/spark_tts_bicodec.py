@@ -72,6 +72,8 @@ class SparkTTSBiCodecModel(nn.Module):
         return wav_recon
 
 
+from vllm.attention.layer import Attention
+
 class SparkTTSBiCodecForGeneration(nn.Module):
     """BiCodec decoder wrapper for vLLM generation pipeline."""
 
@@ -88,6 +90,13 @@ class SparkTTSBiCodecForGeneration(nn.Module):
         self.bicodec_path = os.path.join(self.model_path, "BiCodec")
         
         self.model = None
+
+        # Dummy attention layer to satisfy vLLM KV cache coordinator
+        self.dummy_attn = Attention(
+             num_heads=1,
+             head_size=1,
+             scale=1.0,
+        )
 
     def load_weights(self, weights):
         """Load weights for BiCodec decoder."""
