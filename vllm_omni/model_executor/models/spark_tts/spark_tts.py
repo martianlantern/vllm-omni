@@ -195,6 +195,27 @@ class SparkTTSForConditionalGeneration(nn.Module, CustomProcessMixin):
         """Sample from logits."""
         return self.model.sample(logits, sampling_metadata)
 
-    def load_weights(self, weights):
-        """Load weights for the model."""
-        return self.model.load_weights(weights)
+    def load_weights(self, weights) -> set[str]:
+        """Load weights for the model.
+        
+        Each stage's sub-model is stored under a different attribute
+        (audio_tokenizer, speech_llm, bicodec). We add the corresponding
+        prefix to the loaded weights set so vLLM knows the outer model's
+        parameters were initialized.
+        """
+        from vllm_omni.model_executor.models.utils import add_prefix_to_loaded_weights
+        
+        # Load weights using sub-model
+        loaded = self.model.load_weights(weights)
+        
+        # Add appropriate prefix based on stage
+        prefix_map = {
+            "audio_tokenizer": "audio_tokenizer",
+            "speech_llm": "speech_llm",
+            "bicodec": "bicodec",
+        }
+        prefix = prefix_map.get(self.model_stage, "")
+        
+        if prefix:
+            return add_prefix_to_loaded_weights(loaded, prefix)
+        return loaded

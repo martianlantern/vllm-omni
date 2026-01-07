@@ -142,12 +142,17 @@ class SparkTTSAudioTokenizerForGeneration(nn.Module):
             )
         ])
 
-    def load_weights(self, weights):
+    def load_weights(self, weights) -> set[str]:
         """Load weights for BiCodec components.
         
         Loads `config.yaml` and `model.safetensors` from the BiCodec directory.
         Note: ignoring `weights` iterator for BiCodec components as we load explicitly.
+        
+        Returns:
+            Set of loaded parameter names (relative to this module).
         """
+        loaded_params: set[str] = set()
+        
         # Load config first
         config_path = os.path.join(self.bicodec_path, "config.yaml")
         if not os.path.exists(config_path):
@@ -180,6 +185,8 @@ class SparkTTSAudioTokenizerForGeneration(nn.Module):
                     if missing:
                         logger.warning(f"Missing keys when loading BiCodec: {missing[:5]}...")
                     logger.info(f"Successfully loaded BiCodec weights from {model_file}")
+                    # Track loaded params with 'model.' prefix (relative to this class)
+                    loaded_params = {f"model.{k}" for k in state_dict.keys() if k not in missing}
                 except Exception as e:
                     logger.error(f"Failed to load BiCodec safetensors: {e}")
             else:
@@ -190,6 +197,7 @@ class SparkTTSAudioTokenizerForGeneration(nn.Module):
                         state_dict = torch.load(bin_file, map_location="cpu")
                         self.model.load_state_dict(state_dict, strict=False)
                         logger.info(f"Successfully loaded BiCodec weights from {bin_file}")
+                        loaded_params = {f"model.{k}" for k in state_dict.keys()}
                     except Exception as e:
                         logger.error(f"Failed to load BiCodec bin: {e}")
                 else:
@@ -199,6 +207,8 @@ class SparkTTSAudioTokenizerForGeneration(nn.Module):
             
         else:
              logger.warning(f"BiCodec config not found at {config_path}")
+        
+        return loaded_params
 
     @torch.no_grad()
     def extract_features(self, wav_input: torch.Tensor) -> torch.Tensor:

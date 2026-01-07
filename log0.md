@@ -26,15 +26,27 @@ self.dummy_layers = nn.ModuleList([
 ])
 ```
 
-#### B. Weight Loading Prefix Mismatch (Stage 1)
-**Issue**: The standard `SparkTTS` wrapper added a `speech_llm` prefix to the Qwen2-based Speech LLM. However, vLLM's `AutoWeightsLoader` expects keys to match the checkpoint (standard `model.layers...`), causing initialization failures.
-**Fix**: Removed the `speech_llm` prefix in `spark_tts.py` for Stage 1 initialization.
+#### B. Weight Loading Prefix Mismatch (All Stages)
+**Issue**: The wrapper class `SparkTTSForConditionalGeneration` stores sub-models under attributes like `self.speech_llm`, `self.audio_tokenizer`, `self.bicodec`. vLLM's loader checks `named_parameters()` on the outer model, which includes these prefixes (e.g., `speech_llm.model.layers...`). However, sub-models return loaded weight names relative to themselves (e.g., `model.layers...`).
+**Fix**: The `load_weights` method now adds the appropriate prefix to the returned loaded weights set.
 
 ```python
 # In spark_tts.py
-self.speech_llm = SparkTTSSpeechLLMForGeneration(
-    vllm_config=vllm_config, prefix=prefix  # Was: maybe_prefix(prefix, "speech_llm")
-)
+def load_weights(self, weights) -> set[str]:
+    from vllm_omni.model_executor.models.utils import add_prefix_to_loaded_weights
+    
+    loaded = self.model.load_weights(weights)
+    
+    prefix_map = {
+        "audio_tokenizer": "audio_tokenizer",
+        "speech_llm": "speech_llm",
+        "bicodec": "bicodec",
+    }
+    prefix = prefix_map.get(self.model_stage, "")
+    
+    if prefix:
+        return add_prefix_to_loaded_weights(loaded, prefix)
+    return loaded
 ```
 
 ## Running the Model
@@ -45,3 +57,4 @@ uv run vllm serve /root/voice_agent/services/tts-spark/Spark-TTS-0.5B \
   --port 8091 \
   --host 0.0.0.0
 ```
+
