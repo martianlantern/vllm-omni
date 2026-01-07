@@ -82,6 +82,9 @@ class SparkTTSBiCodecForGeneration(nn.Module):
         self.have_multimodal_outputs = True
 
         self.model_path = vllm_config.model_config.model
+        if self.model_path.rstrip("/").endswith("LLM"):
+            self.model_path = self.model_path.rstrip("/")[:-3].rstrip("/")
+
         self.bicodec_path = os.path.join(self.model_path, "BiCodec")
         
         self.model = None

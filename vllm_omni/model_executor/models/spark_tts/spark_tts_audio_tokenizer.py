@@ -102,6 +102,9 @@ class SparkTTSAudioTokenizerForGeneration(nn.Module):
         
         # Paths
         self.model_path = vllm_config.model_config.model
+        if self.model_path.rstrip("/").endswith("LLM"):
+             self.model_path = self.model_path.rstrip("/")[:-3].rstrip("/")
+             
         self.wav2vec_path = os.path.join(self.model_path, "wav2vec2-large-xlsr-53")
         self.bicodec_path = os.path.join(self.model_path, "BiCodec")
         

@@ -77,8 +77,16 @@ class OmniEngineArgs(EngineArgs):
         # register omni models to avoid model not found error
         self._ensure_omni_models_registered()
 
-        # First, get the base ModelConfig from the parent class
-        base_config = super().create_model_config()
+        # Workaround for SparkTTS: point to LLM subdir for validation if plain root is passed
+        original_model = self.model
+        if self.model_arch == "SparkTTSForConditionalGeneration" and not self.model.rstrip("/").endswith("LLM"):
+             self.model = f"{self.model}/LLM" if not self.model.endswith("/") else f"{self.model}LLM"
+        
+        try:
+            # First, get the base ModelConfig from the parent class
+            base_config = super().create_model_config()
+        finally:
+            self.model = original_model
 
         # Create OmniModelConfig by copying all base config attributes
         # and adding the new omni-specific fields
@@ -154,8 +162,16 @@ class AsyncOmniEngineArgs(AsyncEngineArgs):
     def create_model_config(self) -> OmniModelConfig:
         # register omni models to avoid model not found error
         self._ensure_omni_models_registered()
-        # First, get the base ModelConfig from the parent class
-        base_config = super().create_model_config()
+        # Workaround for SparkTTS: point to LLM subdir for validation if plain root is passed
+        original_model = self.model
+        if self.model_arch == "SparkTTSForConditionalGeneration" and not self.model.rstrip("/").endswith("LLM"):
+             self.model = f"{self.model}/LLM" if not self.model.endswith("/") else f"{self.model}LLM"
+        
+        try:
+            # First, get the base ModelConfig from the parent class
+            base_config = super().create_model_config()
+        finally:
+            self.model = original_model
 
         # Create OmniModelConfig by copying all base config attributes
         # and adding the new omni-specific fields
