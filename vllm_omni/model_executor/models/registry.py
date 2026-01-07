@@ -48,6 +48,27 @@ _OMNI_MODELS = {
         "qwen3_omni_code2wav",
         "Qwen3OmniMoeCode2Wav",
     ),
+    # SparkTTS models
+    "SparkTTSForConditionalGeneration": (
+        "spark_tts",
+        "spark_tts",
+        "SparkTTSForConditionalGeneration",
+    ),
+    "SparkTTSAudioTokenizer": (
+        "spark_tts",
+        "spark_tts_audio_tokenizer",
+        "SparkTTSAudioTokenizerForGeneration",
+    ),
+    "SparkTTSSpeechLLM": (
+        "spark_tts",
+        "spark_tts_speech_llm",
+        "SparkTTSSpeechLLMForGeneration",
+    ),
+    "SparkTTSBiCodec": (
+        "spark_tts",
+        "spark_tts_bicodec",
+        "SparkTTSBiCodecForGeneration",
+    ),
 }
 
 _VLLM_OMNI_MODELS = {

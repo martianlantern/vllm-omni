@@ -1,0 +1,90 @@
+# Stage config for SparkTTS with 3-stage pipeline
+# Model: SparkAudio/Spark-TTS-0.5B (HuggingFace)
+#
+# Stage 0: Audio Tokenizer (wav2vec2 preprocessing for voice cloning)
+# Stage 1: Speech LLM (text → semantic tokens)
+# Stage 2: BiCodec Decoder (semantic tokens → audio)
+
+stage_args:
+  # Stage 0: Audio Tokenizer (wav2vec2 + BiCodec encoder)
+  # Only active when reference audio is provided for voice cloning
+  - stage_id: 0
+    stage_type: llm
+    runtime:
+      process: true
+      devices: "0"
+      max_batch_size: 8
+    engine_args:
+      model_stage: audio_tokenizer
+      model_arch: SparkTTSForConditionalGeneration
+      worker_cls: vllm_omni.worker.gpu_generation_worker.GPUGenerationWorker
+      scheduler_cls: vllm_omni.core.sched.omni_generation_scheduler.OmniGenerationScheduler
+      gpu_memory_utilization: 0.2
+      enforce_eager: true
+      trust_remote_code: true
+      engine_output_type: latent
+    is_comprehension: true
+    final_output: false
+
+  # Stage 1: Speech LLM (Qwen2-0.5B based)
+  - stage_id: 1
+    stage_type: llm
+    runtime:
+      process: true
+      devices: "0"
+      max_batch_size: 8
+    engine_args:
+      model_stage: speech_llm
+      model_arch: SparkTTSForConditionalGeneration
+      worker_cls: vllm_omni.worker.gpu_ar_worker.GPUARWorker
+      scheduler_cls: vllm_omni.core.sched.omni_ar_scheduler.OmniARScheduler
+      gpu_memory_utilization: 0.5
+      enforce_eager: true
+      trust_remote_code: true
+      engine_output_type: text
+      enable_prefix_caching: false
+      max_num_batched_tokens: 32768
+    engine_input_source: [0]
+    custom_process_input_func: vllm_omni.model_executor.stage_input_processors.spark_tts.tokenizer_to_speech_llm
+    final_output: false
+    default_sampling_params:
+      temperature: 0.9
+      top_p: 0.95
+      top_k: 50
+      max_tokens: 4096
+      repetition_penalty: 1.0
+      detokenize: true
+
+  # Stage 2: BiCodec Decoder
+  - stage_id: 2
+    stage_type: llm
+    runtime:
+      process: true
+      devices: "0"
+      max_batch_size: 8
+    engine_args:
+      model_stage: bicodec
+      model_arch: SparkTTSForConditionalGeneration
+      worker_cls: vllm_omni.worker.gpu_generation_worker.GPUGenerationWorker
+      scheduler_cls: vllm_omni.core.sched.omni_generation_scheduler.OmniGenerationScheduler
+      gpu_memory_utilization: 0.2
+      enforce_eager: true
+      trust_remote_code: true
+      engine_output_type: audio
+    engine_input_source: [0, 1]
+    custom_process_input_func: vllm_omni.model_executor.stage_input_processors.spark_tts.speech_llm_to_bicodec
+    final_output: true
+    final_output_type: audio
+
+runtime:
+  enabled: true
+  defaults:
+    window_size: -1
+    max_inflight: 1
+  edges:
+    - from: 0
+      to: 1
+      window_size: -1
+    - from: 1
+      to: 2
+      window_size: 50  # Stream chunks of ~50 semantic tokens for low latency
