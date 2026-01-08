@@ -246,12 +246,10 @@ class SparkTTSAudioTokenizerForGeneration(nn.Module):
         if audio is None:
             # Check prompt data or multimodal dict
             # For now return empty/dummy if no audio
-             return OmniOutput(
+            # Return empty dict - None values cause serialization issues
+            return OmniOutput(
                 text_hidden_states=None,
-                multimodal_outputs={
-                    "global_tokens": None,
-                    "semantic_tokens": None,
-                },
+                multimodal_outputs={},
             )
 
         # 1. Extract features (wav2vec2)
