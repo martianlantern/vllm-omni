@@ -72,6 +72,11 @@ class NoOpKVCacheManager:
         """Return empty stats."""
         return None
     
+    def make_prefix_cache_stats(self):
+        """Return empty prefix cache stats for scheduler.make_stats()."""
+        from vllm.v1.metrics.stats import PrefixCacheStats
+        return PrefixCacheStats()
+    
     def get_num_free_blocks(self) -> int:
         """Return large number to indicate no memory pressure."""
         return 1000000
