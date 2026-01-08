@@ -88,3 +88,18 @@ class NoOpKVCacheManager:
     def get_num_cached_blocks(self) -> int:
         """No cached blocks."""
         return 0
+    
+    @property
+    def usage(self) -> float:
+        """Return 0% usage for non-attention models."""
+        return 0.0
+    
+    @property
+    def num_cached_blocks(self) -> int:
+        """No cached blocks."""
+        return 0
+    
+    @property
+    def num_free_blocks(self) -> int:
+        """Return large number - no memory pressure."""
+        return 1000000
