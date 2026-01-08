@@ -7,7 +7,6 @@ from vllm.logger import init_logger
 from vllm.multimodal import MULTIMODAL_REGISTRY, MultiModalRegistry
 from vllm.v1.core.encoder_cache_manager import (
     EncoderCacheManager,
-    EncoderDecoderCacheManager,
     compute_encoder_budget,
 )
 from vllm.v1.core.kv_cache_manager import KVCacheBlocks
@@ -147,11 +146,8 @@ class OmniGenerationScheduler(VLLMScheduler):
             mm_registry=mm_registry,
         )
         self.max_num_encoder_input_tokens = encoder_compute_budget
-        self.encoder_cache_manager = (
-            EncoderDecoderCacheManager(cache_size=encoder_cache_size)
-            if self.is_encoder_decoder
-            else EncoderCacheManager(cache_size=encoder_cache_size)
-        )
+        # Always use EncoderCacheManager for generation models (no encoder-decoder)
+        self.encoder_cache_manager = EncoderCacheManager(cache_size=encoder_cache_size)
         self._num_encoder_max_input_tokens = (
             MULTIMODAL_REGISTRY.get_encdec_max_encoder_len(vllm_config.model_config)
         )

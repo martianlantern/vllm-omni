@@ -97,7 +97,6 @@ class SparkTTSBiCodecForGeneration(nn.Module):
         Returns:
             Set of loaded parameter names (relative to this module).
         """
-        """
         loaded_params: set[str] = set()
         
         # Load config first
