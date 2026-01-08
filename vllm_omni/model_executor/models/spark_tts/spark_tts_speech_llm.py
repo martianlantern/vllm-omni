@@ -22,6 +22,8 @@ from vllm.config import VllmConfig
 from vllm.logger import init_logger
 from vllm.model_executor.models.qwen2 import Qwen2ForCausalLM
 from vllm.sequence import IntermediateTensors
+from vllm.v1.sample.metadata import SamplingMetadata
+from vllm.v1.sample.sampler import Sampler
 from vllm_omni.model_executor.models.output_templates import OmniOutput
 
 logger = init_logger(__name__)
@@ -83,6 +85,35 @@ class SparkTTSSpeechLLMForGeneration(Qwen2ForCausalLM):
             )
         except Exception as e:
             logger.warning(f"Failed to load tokenizer in SpeechLLM: {e}")
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        positions: torch.Tensor,
+        intermediate_tensors: Optional[IntermediateTensors] = None,
+        inputs_embeds: Optional[torch.Tensor] = None,
+        # vLLM v1 specific arguments that Qwen2ForCausalLM doesn't accept
+        sampling_metadata: Optional[SamplingMetadata] = None,
+        logits_index: Optional[int] = None,
+        sampler: Optional[Sampler] = None,
+        additional_information: Optional[dict] = None,
+        **kwargs,
+    ) -> torch.Tensor:
+        """Forward pass for speech LLM.
+        
+        This method accepts vLLM v1 specific arguments (sampling_metadata, 
+        logits_index, sampler, additional_information) and filters them out
+        before calling the parent Qwen2ForCausalLM.forward() which doesn't
+        expect these arguments.
+        """
+        # Filter out vLLM v1 specific kwargs that Qwen2ForCausalLM doesn't accept
+        # The parent class expects: input_ids, positions, intermediate_tensors, inputs_embeds
+        return super().forward(
+            input_ids=input_ids,
+            positions=positions,
+            intermediate_tensors=intermediate_tensors,
+            inputs_embeds=inputs_embeds,
+        )
 
     def preprocess(
         self,

@@ -66,6 +66,34 @@ def load_weights(self, weights) -> set[str]:
     return loaded
 ```
 
+#### D. Forward Method Signature for Speech LLM (Stage 1)
+**Issue**: vLLM-Omni's `GPUARModelRunner` calls `model.forward()` with vLLM v1 specific arguments (`sampling_metadata`, `logits_index`, `sampler`, `additional_information`). `SparkTTSSpeechLLMForGeneration` extends `Qwen2ForCausalLM` directly, inheriting its `forward()` which doesn't accept these arguments.
+**Fix**: Override `forward()` in `SparkTTSSpeechLLMForGeneration` to accept and filter out the vLLM v1 arguments.
+
+```python
+# In SparkTTSSpeechLLMForGeneration
+def forward(
+    self,
+    input_ids: torch.Tensor,
+    positions: torch.Tensor,
+    intermediate_tensors: Optional[IntermediateTensors] = None,
+    inputs_embeds: Optional[torch.Tensor] = None,
+    # vLLM v1 specific arguments that Qwen2ForCausalLM doesn't accept
+    sampling_metadata: Optional[SamplingMetadata] = None,
+    logits_index: Optional[int] = None,
+    sampler: Optional[Sampler] = None,
+    additional_information: Optional[dict] = None,
+    **kwargs,
+) -> torch.Tensor:
+    # Filter out vLLM v1 specific kwargs
+    return super().forward(
+        input_ids=input_ids,
+        positions=positions,
+        intermediate_tensors=intermediate_tensors,
+        inputs_embeds=inputs_embeds,
+    )
+```
+
 ## Running the Model
 ```bash
 uv run vllm serve /root/voice_agent/services/tts-spark/Spark-TTS-0.5B \
