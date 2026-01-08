@@ -111,24 +111,33 @@ loaded_params.update({f"model.{k}" for k in state_dict.keys()})  # Preserves wav
 ```
 AssertionError: HybridKVCacheCoordinator assumes exactly one type of full attention groups now.
 ```
-**Initial Attempt**: Removed dummy `Attention` layers entirely, but this caused the above error.
-**Fix**: Create `DummyDecoderLayer` class with properly-named `self_attn` attribute. vLLM's `extract_layer_index` expects layer names like `model.layers.0.self_attn` - the key is the `self_attn` suffix after the layer index.
+
+**Initial Attempts**:
+1. Adding dummy `Attention` layers - failed because vLLM's config-based KV cache determination happens before model loading
+2. Using `hf_config_name` to borrow Qwen2Config - required modifying model directory
+
+**Final Fix (PR-Ready)**: Override `OmniGenerationScheduler.__init__` to detect empty `kv_cache_groups` and use `NoOpKVCacheManager` instead of `KVCacheManager`.
+
+**New Files**:
+- `vllm_omni/core/sched/noop_kv_cache_manager.py` - Minimal no-op implementation of KVCacheManager interface
+
+**Modified Files**:
+- `vllm_omni/core/sched/omni_generation_scheduler.py` - Added `__init__` override with `_init_no_kv_cache()` method
 
 ```python
-class DummyDecoderLayer(nn.Module):
-    """Provides 'model.layers.0.self_attn' naming pattern for vLLM's KV cache."""
-    def __init__(self, layer_idx: int = 0):
-        super().__init__()
-        self.self_attn = Attention(num_heads=1, head_size=1, scale=1.0)
-        self.layer_idx = layer_idx
-
-# In SparkTTSBiCodecForGeneration and SparkTTSAudioTokenizerForGeneration:
-self.layers = nn.ModuleList([DummyDecoderLayer(0)])
+# In OmniGenerationScheduler:
+def __init__(self, ...):
+    if not kv_cache_config.kv_cache_groups:
+        # Non-attention model: skip KV cache entirely
+        self._no_kv_cache = True
+        self._init_no_kv_cache(...)  # Uses NoOpKVCacheManager
+    else:
+        super().__init__(...)  # Normal path with KVCacheManager
 ```
 
 ## Running the Model
 ```bash
-uv run vllm serve /root/voice_agent/services/tts-spark/Spark-TTS-0.5B \
+uv run vllm serve /root/Spark-TTS-0.5B \
   --omni \
   --stage-configs-path vllm_omni/model_executor/stage_configs/spark_tts.yaml \
   --port 8091 \

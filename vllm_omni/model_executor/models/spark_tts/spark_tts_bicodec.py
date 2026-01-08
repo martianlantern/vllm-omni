@@ -72,31 +72,6 @@ class SparkTTSBiCodecModel(nn.Module):
         return wav_recon
 
 
-from vllm.attention.layer import Attention
-
-
-class DummyDecoderLayer(nn.Module):
-    """Dummy decoder layer to satisfy vLLM's KV cache layer naming pattern.
-    
-    vLLM's extract_layer_index expects layer names like 'model.layers.0.self_attn'.
-    This minimal class provides that structure for non-attention models.
-    """
-    
-    def __init__(self, layer_idx: int = 0):
-        super().__init__()
-        # Create a minimal Attention layer with required structure
-        self.self_attn = Attention(
-            num_heads=1,
-            head_size=1,
-            scale=1.0,
-        )
-        self.layer_idx = layer_idx
-    
-    def forward(self, hidden_states, **kwargs):
-        # This is never called for non-attention models
-        return hidden_states
-
-
 class SparkTTSBiCodecForGeneration(nn.Module):
     """BiCodec decoder wrapper for vLLM generation pipeline."""
 
@@ -113,25 +88,17 @@ class SparkTTSBiCodecForGeneration(nn.Module):
         self.bicodec_path = os.path.join(self.model_path, "BiCodec")
         
         self.model = None
-        
-        # Dummy decoder layers to satisfy vLLM's KV cache coordinator
-        # Creates 'model.layers.0.self_attn' naming pattern that extract_layer_index expects
-        self.layers = nn.ModuleList([DummyDecoderLayer(0)])
 
     def load_weights(self, weights) -> set[str]:
         """Load weights for BiCodec decoder.
         
         - BiCodec: Loaded from safetensors in BiCodec directory
-        - layers (dummy attention): Randomly initialized for KV cache compatibility
         
         Returns:
             Set of loaded parameter names (relative to this module).
         """
+        """
         loaded_params: set[str] = set()
-        
-        # Track dummy layers (randomly initialized, no checkpoint needed)
-        for name, _ in self.layers.named_parameters():
-            loaded_params.add(f"layers.{name}")
         
         # Load config first
         config_path = os.path.join(self.bicodec_path, "config.yaml")

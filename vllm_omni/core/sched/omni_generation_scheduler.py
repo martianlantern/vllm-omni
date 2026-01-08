@@ -1,21 +1,173 @@
 import time
 from collections import defaultdict
 
-from vllm.distributed.kv_events import KVEventBatch
+from vllm.config import VllmConfig
+from vllm.distributed.kv_events import KVEventBatch, EventPublisherFactory
+from vllm.logger import init_logger
+from vllm.multimodal import MULTIMODAL_REGISTRY, MultiModalRegistry
+from vllm.v1.core.encoder_cache_manager import (
+    EncoderCacheManager,
+    EncoderDecoderCacheManager,
+    compute_encoder_budget,
+)
 from vllm.v1.core.kv_cache_manager import KVCacheBlocks
+from vllm.v1.core.sched.interface import SchedulerInterface
 from vllm.v1.core.sched.output import SchedulerOutput
-from vllm.v1.core.sched.request_queue import create_request_queue
+from vllm.v1.core.sched.request_queue import SchedulingPolicy, create_request_queue
 from vllm.v1.core.sched.scheduler import Scheduler as VLLMScheduler
 from vllm.v1.core.sched.utils import remove_all
 from vllm.v1.engine import EngineCoreEventType, EngineCoreOutput, EngineCoreOutputs
+from vllm.v1.kv_cache_interface import KVCacheConfig
 from vllm.v1.request import Request, RequestStatus
 from vllm.v1.spec_decode.metrics import SpecDecodingStats
+from vllm.v1.structured_output import StructuredOutputManager
 
+from vllm_omni.core.sched.noop_kv_cache_manager import NoOpKVCacheManager
 from vllm_omni.core.sched.output import OmniNewRequestData
 from vllm_omni.outputs import OmniModelRunnerOutput
 
+logger = init_logger(__name__)
+
 
 class OmniGenerationScheduler(VLLMScheduler):
+    """Scheduler for non-autoregressive generation models (e.g., audio decoders).
+    
+    Extends VLLMScheduler with:
+    - Support for models without KV cache (using NoOpKVCacheManager)
+    - One-shot scheduling for diffusion-like models
+    """
+    
+    def __init__(
+        self,
+        vllm_config: VllmConfig,
+        kv_cache_config: KVCacheConfig,
+        structured_output_manager: StructuredOutputManager,
+        block_size: int,
+        mm_registry: MultiModalRegistry = MULTIMODAL_REGISTRY,
+        include_finished_set: bool = False,
+        log_stats: bool = False,
+    ) -> None:
+        # Check if model has no KV cache (no attention groups)
+        self._no_kv_cache = not kv_cache_config.kv_cache_groups
+        
+        if self._no_kv_cache:
+            # Initialize without calling parent __init__ to avoid KVCacheManager
+            # that fails on empty kv_cache_groups
+            logger.info("Initializing OmniGenerationScheduler with NoOpKVCacheManager "
+                       "(model has no KV cache / attention layers)")
+            self._init_no_kv_cache(
+                vllm_config=vllm_config,
+                kv_cache_config=kv_cache_config,
+                structured_output_manager=structured_output_manager,
+                block_size=block_size,
+                mm_registry=mm_registry,
+                include_finished_set=include_finished_set,
+                log_stats=log_stats,
+            )
+        else:
+            # Normal path with KV cache
+            super().__init__(
+                vllm_config=vllm_config,
+                kv_cache_config=kv_cache_config,
+                structured_output_manager=structured_output_manager,
+                block_size=block_size,
+                mm_registry=mm_registry,
+                include_finished_set=include_finished_set,
+                log_stats=log_stats,
+            )
+    
+    def _init_no_kv_cache(
+        self,
+        vllm_config: VllmConfig,
+        kv_cache_config: KVCacheConfig,
+        structured_output_manager: StructuredOutputManager,
+        block_size: int,
+        mm_registry: MultiModalRegistry,
+        include_finished_set: bool,
+        log_stats: bool,
+    ) -> None:
+        """Initialize scheduler for models without KV cache."""
+        self.vllm_config = vllm_config
+        self.scheduler_config = vllm_config.scheduler_config
+        self.cache_config = vllm_config.cache_config
+        self.lora_config = vllm_config.lora_config
+        self.kv_cache_config = kv_cache_config
+        self.kv_events_config = vllm_config.kv_events_config
+        self.parallel_config = vllm_config.parallel_config
+        self.log_stats = log_stats
+        self.observability_config = vllm_config.observability_config
+        self.kv_metrics_collector = None
+        self.structured_output_manager = structured_output_manager
+        self.is_encoder_decoder = vllm_config.model_config.is_encoder_decoder
+
+        # Request tracking
+        self.finished_req_ids_dict = (
+            defaultdict(set) if include_finished_set else None
+        )
+        self.prev_step_scheduled_req_ids: set[str] = set()
+
+        # Scheduling constraints
+        self.max_num_running_reqs = self.scheduler_config.max_num_seqs
+        self.max_num_scheduled_tokens = self.scheduler_config.max_num_batched_tokens
+        self.max_model_len = vllm_config.model_config.max_model_len
+        self.enable_kv_cache_events = False
+
+        # No KV connector for non-KV-cache models
+        self.connector = None
+        self.connector_prefix_cache_stats = None
+        self.recompute_kv_load_failures = True
+        self.kv_event_publisher = EventPublisherFactory.create(
+            self.kv_events_config,
+            self.parallel_config.data_parallel_index,
+        )
+        self.ec_connector = None
+
+        self.block_size = block_size
+        self.dcp_world_size = vllm_config.parallel_config.decode_context_parallel_size
+        self.pcp_world_size = vllm_config.parallel_config.prefill_context_parallel_size
+
+        # Request queues
+        self.requests: dict[str, Request] = {}
+        try:
+            self.policy = SchedulingPolicy(self.scheduler_config.policy)
+        except ValueError as e:
+            raise ValueError(
+                f"Unknown scheduling policy: {self.scheduler_config.policy}"
+            ) from e
+        self.waiting = create_request_queue(self.policy)
+        self.running: list[Request] = []
+        self.finished_req_ids: set[str] = set()
+        self.finished_recving_kv_req_ids: set[str] = set()
+        self.failed_recving_kv_req_ids: set[str] = set()
+
+        # Encoder-related
+        encoder_compute_budget, encoder_cache_size = compute_encoder_budget(
+            model_config=vllm_config.model_config,
+            scheduler_config=vllm_config.scheduler_config,
+            mm_registry=mm_registry,
+        )
+        self.max_num_encoder_input_tokens = encoder_compute_budget
+        self.encoder_cache_manager = (
+            EncoderDecoderCacheManager(cache_size=encoder_cache_size)
+            if self.is_encoder_decoder
+            else EncoderCacheManager(cache_size=encoder_cache_size)
+        )
+        self._num_encoder_max_input_tokens = (
+            MULTIMODAL_REGISTRY.get_encdec_max_encoder_len(vllm_config.model_config)
+        )
+
+        # Speculative decoding (not used for generation models)
+        self.use_eagle = False
+        self.num_spec_tokens = self.num_lookahead_tokens = 0
+
+        # Use NoOpKVCacheManager instead of KVCacheManager
+        self.kv_cache_manager = NoOpKVCacheManager(log_stats=log_stats)
+        
+        self.use_pp = self.parallel_config.pipeline_parallel_size > 1
+        self.use_v2_model_runner = False  # Generation models don't use v2 runner
+        self.perf_metrics = None
+
+
     def schedule(self) -> SchedulerOutput:
         """Diffusion fast path:
         - Feed all input tokens of the request at once
