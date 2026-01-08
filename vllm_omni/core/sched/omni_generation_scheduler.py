@@ -163,7 +163,16 @@ class OmniGenerationScheduler(VLLMScheduler):
         self.use_pp = self.parallel_config.pipeline_parallel_size > 1
         self.use_v2_model_runner = False  # Generation models don't use v2 runner
         self.perf_metrics = None
-
+    
+    def make_stats(self, spec_decoding_stats=None, kv_connector_stats=None):
+        """Override to return None for no-KV-cache models.
+        
+        Non-attention models don't have meaningful KV cache stats,
+        and returning complex stats can cause serialization issues.
+        """
+        if self._no_kv_cache:
+            return None
+        return super().make_stats(spec_decoding_stats, kv_connector_stats)
 
     def schedule(self) -> SchedulerOutput:
         """Diffusion fast path:
