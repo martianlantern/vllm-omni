@@ -115,9 +115,10 @@ class OmniGenerationScheduler(VLLMScheduler):
         self.connector = None
         self.connector_prefix_cache_stats = None
         self.recompute_kv_load_failures = True
+        # For non-attention models, we don't use data parallelism
         self.kv_event_publisher = EventPublisherFactory.create(
             self.kv_events_config,
-            self.parallel_config.data_parallel_index,
+            0,  # data_parallel_index - default to 0 for generation models
         )
         self.ec_connector = None
 
