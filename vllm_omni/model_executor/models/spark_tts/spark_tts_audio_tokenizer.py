@@ -91,7 +91,6 @@ class SparkTTSAudioTokenizerModel(nn.Module):
         }
 
 
-from vllm.attention.layer import Attention
 
 class SparkTTSAudioTokenizerForGeneration(nn.Module):
     """Audio tokenizer wrapper for vLLM generation pipeline."""
@@ -132,22 +131,11 @@ class SparkTTSAudioTokenizerForGeneration(nn.Module):
         # Placeholder for BiCodec model (will be loaded in load_weights)
         self.model = None
 
-        # Dummy attention layer to satisfy vLLM KV cache coordinator
-        # Named 'layers' to match vLLM's expected pattern for layer index extraction
-        self.layers = nn.ModuleList([
-            Attention(
-                num_heads=1,
-                head_size=1,
-                scale=1.0,
-            )
-        ])
-
     def load_weights(self, weights) -> set[str]:
         """Load weights for audio tokenizer components.
         
         - wav2vec2: Already loaded in __init__ via from_pretrained()
         - BiCodec: Loaded from safetensors in BiCodec directory
-        - layers (dummy attention): Randomly initialized, no checkpoint needed
         
         Returns:
             Set of loaded parameter names (relative to this module).
@@ -160,10 +148,6 @@ class SparkTTSAudioTokenizerForGeneration(nn.Module):
                 loaded_params.add(f"wav2vec2.{name}")
             for name, _ in self.wav2vec2.named_buffers():
                 loaded_params.add(f"wav2vec2.{name}")
-        
-        # Track dummy attention layer weights (randomly initialized is OK)
-        for name, _ in self.layers.named_parameters():
-            loaded_params.add(f"layers.{name}")
         
         # Load config first
         config_path = os.path.join(self.bicodec_path, "config.yaml")
@@ -197,8 +181,8 @@ class SparkTTSAudioTokenizerForGeneration(nn.Module):
                     if missing:
                         logger.warning(f"Missing keys when loading BiCodec: {missing[:5]}...")
                     logger.info(f"Successfully loaded BiCodec weights from {model_file}")
-                    # Track loaded params with 'model.' prefix (relative to this class)
-                    loaded_params = {f"model.{k}" for k in state_dict.keys() if k not in missing}
+                    # Track loaded params with 'model.' prefix (UPDATE, don't overwrite)
+                    loaded_params.update({f"model.{k}" for k in state_dict.keys() if k not in missing})
                 except Exception as e:
                     logger.error(f"Failed to load BiCodec safetensors: {e}")
             else:
@@ -209,7 +193,7 @@ class SparkTTSAudioTokenizerForGeneration(nn.Module):
                         state_dict = torch.load(bin_file, map_location="cpu")
                         self.model.load_state_dict(state_dict, strict=False)
                         logger.info(f"Successfully loaded BiCodec weights from {bin_file}")
-                        loaded_params = {f"model.{k}" for k in state_dict.keys()}
+                        loaded_params.update({f"model.{k}" for k in state_dict.keys()})
                     except Exception as e:
                         logger.error(f"Failed to load BiCodec bin: {e}")
                 else:

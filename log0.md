@@ -94,6 +94,27 @@ def forward(
     )
 ```
 
+#### E. load_weights Overwrite Bug (Stage 0 + Stage 2)
+**Issue**: In both `SparkTTSAudioTokenizerForGeneration` and `SparkTTSBiCodecForGeneration`, `load_weights` used `loaded_params = {new set}` which **overwrites** previously tracked params (wav2vec2/layers), causing weight initialization errors.
+**Fix**: Change to `loaded_params.update({new set})` to preserve previously tracked weights.
+
+```python
+# Before (BUG):
+loaded_params = {f"model.{k}" for k in state_dict.keys()}  # Overwrites wav2vec2!
+
+# After (FIX):
+loaded_params.update({f"model.{k}" for k in state_dict.keys()})  # Preserves wav2vec2!
+```
+
+#### F. Dummy Attention Layer Causing KV Cache Assertion (Stage 0 + Stage 2)
+**Issue**: Dummy `Attention` layers were added to non-attention models (audio_tokenizer, bicodec) to satisfy vLLM's KV cache coordinator. However, vLLM's `extract_layer_index` function failed because these dummy layers didn't have proper naming patterns (expected `layers.0.self_attn`, got empty suffix).
+**Fix**: Remove dummy `Attention` layers entirely. vLLM properly handles models without any attention layers by skipping KV cache initialization (see `Qwen3OmniMoeCode2Wav` as reference).
+
+```python
+# REMOVED from SparkTTSAudioTokenizerForGeneration and SparkTTSBiCodecForGeneration:
+# self.layers = nn.ModuleList([Attention(...)])
+```
+
 ## Running the Model
 ```bash
 uv run vllm serve /root/voice_agent/services/tts-spark/Spark-TTS-0.5B \
